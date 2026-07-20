@@ -6,7 +6,7 @@ import requests
 from urllib.parse import quote
 
 API_URL = "http://fzielts.gedu.net.cn/fzielts/schedule_queryByTeacherClass.action"
-TEACHER_ID = os.environ.get("TEACHER_ID", "510")
+TEACHER_ID = os.environ["TEACHER_ID"]
 BARK_KEY = os.environ.get("BARK_KEY", "")
 CACHE_FILE = "schedule_cache.json"
 
