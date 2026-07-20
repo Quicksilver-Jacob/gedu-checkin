@@ -1,0 +1,27 @@
+# Daytime notify: runs every 5 min, reads cached schedule, sends Bark
+# No API calls — schedule is fetched once nightly by fetch.yml
+name: Class Check-in Reminder
+
+on:
+  schedule:
+    # Every 5 min, 08:00-21:15 Beijing time (00:00-13:15 UTC)
+    - cron: '*/5 0-13 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install requests
+        run: pip install requests
+
+      - name: Send check-in reminders
+        run: python notifier.py
+        env:
+          BARK_KEY: ${{ secrets.BARK_KEY }}
