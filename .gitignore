@@ -1,0 +1,9 @@
+# GEDU Check-in Reminder — only these files are tracked
+*
+!fetch_schedule.py
+!notifier.py
+!.github/
+!.github/workflows/
+!.github/workflows/fetch.yml
+!.github/workflows/checkin.yml
+!.gitignore
