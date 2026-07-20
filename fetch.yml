@@ -1,0 +1,39 @@
+# Nightly fetch: runs at 23:00 Beijing time (15:00 UTC)
+# Fetches tomorrow's schedule once, commits cache to repo
+name: Fetch Tomorrow Schedule
+
+on:
+  schedule:
+    - cron: '0 15 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install requests
+        run: pip install requests
+
+      - name: Fetch tomorrow's schedule
+        run: python fetch_schedule.py
+        env:
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+          TEACHER_ID: ${{ vars.TEACHER_ID }}
+
+      - name: Commit cache
+        run: |
+          git config user.name "GEDU Bot"
+          git config user.email "bot@gedu.local"
+          git add schedule_cache.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update schedule cache [skip ci]"
+            git push
+          fi
