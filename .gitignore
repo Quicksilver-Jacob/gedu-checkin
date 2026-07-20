@@ -2,6 +2,7 @@
 *
 !fetch_schedule.py
 !notifier.py
+!schedule_cache.json
 !.github/
 !.github/workflows/
 !.github/workflows/fetch.yml
