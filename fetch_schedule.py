@@ -151,15 +151,19 @@ def scan_and_cache(start_date_str, max_days=MAX_SCAN_DAYS):
 
 
 def main():
+    import sys
     n = now_china()
-    tomorrow = (n + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+    if len(sys.argv) > 1:
+        start_date = sys.argv[1]
+    else:
+        start_date = (n + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
-    class_date, reminders, empty_dates = scan_and_cache(tomorrow)
+    class_date, reminders, empty_dates = scan_and_cache(start_date)
 
     if class_date is None and reminders is None:
         send_bark("GEDU打卡", "课表抓取失败，明天可能没有打卡提醒")
     elif reminders == []:
-        send_bark("GEDU打卡", f"未来{MAX_SCAN_DAYS}天均无课程")
+        send_bark("GEDU打卡", f"从{start_date}起{MAX_SCAN_DAYS}天均无课程")
 
 
 if __name__ == "__main__":
