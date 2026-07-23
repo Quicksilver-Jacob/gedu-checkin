@@ -1,6 +1,7 @@
 # GEDU Check-in Reminder — only these files are tracked
 *
 !fetch_schedule.py
+!test_fetch_schedule.py
 !notifier.py
 !schedule_cache.json
 !.github/

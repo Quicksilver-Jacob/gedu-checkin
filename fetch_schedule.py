@@ -1,4 +1,5 @@
-"""Nightly fetch: runs once at 23:00 China time, fetches tomorrow's schedule."""
+"""Nightly fetch: runs at 23:00 China time. Scans forward from tomorrow
+until finding a day with classes (max 7 days), caches all scanned days."""
 import os
 import json
 import datetime
@@ -9,6 +10,7 @@ API_URL = "http://fzielts.gedu.net.cn/fzielts/schedule_queryByTeacherClass.actio
 TEACHER_ID = os.environ["TEACHER_ID"]
 BARK_KEY = os.environ.get("BARK_KEY", "")
 CACHE_FILE = "schedule_cache.json"
+MAX_SCAN_DAYS = 7
 
 CHINA_TZ = datetime.timezone(datetime.timedelta(hours=8))
 
@@ -82,46 +84,82 @@ def build_reminders(first_start, last_end):
     return reminders
 
 
-def main():
-    n = now_china()
-    tomorrow = (n + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-    print(f"Fetching schedule for {tomorrow}...")
-
-    events = fetch_schedule(tomorrow)
-    if events is None:
-        print("Fetch failed!")
-        send_bark("GEDU打卡", "课表抓取失败，明天可能没有打卡提醒")
-        return
-    if not events:
-        print("No classes tomorrow")
-        # Write empty cache so notifier knows there's nothing
-        cache = {}
-        if os.path.exists(CACHE_FILE):
-            with open(CACHE_FILE) as f:
-                cache = json.load(f)
-        cache[tomorrow] = None
-        today_str = n.strftime("%Y-%m-%d")
-        cache = {k: v for k, v in cache.items() if k >= today_str}
-        with open(CACHE_FILE, 'w') as f:
-            json.dump(cache, f, ensure_ascii=False)
-        return
-
-    earliest = min(events, key=lambda e: e['start'])
-    latest = max(events, key=lambda e: e['end'])
-    reminders = build_reminders(earliest['start'], latest['end'])
-
-    cache = {}
+def load_cache():
     if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE) as f:
-            cache = json.load(f)
-    cache[tomorrow] = reminders
-    today_str = n.strftime("%Y-%m-%d")
-    cache = {k: v for k, v in cache.items() if k >= today_str}
+            return json.load(f)
+    return {}
+
+
+def save_cache(cache):
     with open(CACHE_FILE, 'w') as f:
         json.dump(cache, f, ensure_ascii=False)
 
-    print(f"Saved {len(reminders)} reminders for {tomorrow}: "
-          f"{earliest['start']} -> {latest['end']}")
+
+def scan_and_cache(start_date_str, max_days=MAX_SCAN_DAYS):
+    """Scan forward from start_date_str until a day with classes is found.
+    Returns (class_date, reminders, failed_dates) where:
+      - class_date: str or None
+      - reminders: list or None (None = API error, [] = no classes in range)
+      - failed_dates: list of date_strs that were empty
+    Also writes the updated cache file."""
+    cache = load_cache()
+    start = datetime.datetime.strptime(start_date_str, "%Y-%m-%d").replace(tzinfo=CHINA_TZ)
+    empty_dates = []
+
+    for i in range(max_days):
+        day = (start + datetime.timedelta(days=i)).strftime("%Y-%m-%d")
+        print(f"Fetching schedule for {day}...")
+
+        events = fetch_schedule(day)
+        if events is None:
+            # API error — abort, mark all scanned empty dates in cache
+            today_str = now_china().strftime("%Y-%m-%d")
+            for d in empty_dates:
+                cache[d] = None
+            cache = {k: v for k, v in cache.items() if k >= today_str}
+            save_cache(cache)
+            return None, None, empty_dates
+
+        if events:
+            earliest = min(events, key=lambda e: e['start'])
+            latest = max(events, key=lambda e: e['end'])
+            reminders = build_reminders(earliest['start'], latest['end'])
+            today_str = now_china().strftime("%Y-%m-%d")
+            for d in empty_dates:
+                cache[d] = None
+            cache[day] = reminders
+            cache = {k: v for k, v in cache.items() if k >= today_str}
+            save_cache(cache)
+            print(f"Found classes on {day}: {earliest['start']} -> {latest['end']}"
+                  f" ({len(reminders)} reminders)")
+            if empty_dates:
+                print(f"Skipped empty days: {', '.join(empty_dates)}")
+            return day, reminders, empty_dates
+
+        print(f"No classes on {day}")
+        empty_dates.append(day)
+
+    # All max_days scanned, no classes found
+    today_str = now_china().strftime("%Y-%m-%d")
+    for d in empty_dates:
+        cache[d] = None
+    cache = {k: v for k, v in cache.items() if k >= today_str}
+    save_cache(cache)
+    print(f"No classes found in next {max_days} days")
+    return None, [], empty_dates
+
+
+def main():
+    n = now_china()
+    tomorrow = (n + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
+    class_date, reminders, empty_dates = scan_and_cache(tomorrow)
+
+    if class_date is None and reminders is None:
+        send_bark("GEDU打卡", "课表抓取失败，明天可能没有打卡提醒")
+    elif reminders == []:
+        send_bark("GEDU打卡", f"未来{MAX_SCAN_DAYS}天均无课程")
 
 
 if __name__ == "__main__":
