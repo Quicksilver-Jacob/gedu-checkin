@@ -100,7 +100,8 @@ def main():
             with open(CACHE_FILE) as f:
                 cache = json.load(f)
         cache[tomorrow] = None
-        cache = {k: v for k, v in cache.items() if k >= tomorrow}
+        today_str = n.strftime("%Y-%m-%d")
+        cache = {k: v for k, v in cache.items() if k >= today_str}
         with open(CACHE_FILE, 'w') as f:
             json.dump(cache, f, ensure_ascii=False)
         return
@@ -114,7 +115,8 @@ def main():
         with open(CACHE_FILE) as f:
             cache = json.load(f)
     cache[tomorrow] = reminders
-    cache = {k: v for k, v in cache.items() if k >= tomorrow}
+    today_str = n.strftime("%Y-%m-%d")
+    cache = {k: v for k, v in cache.items() if k >= today_str}
     with open(CACHE_FILE, 'w') as f:
         json.dump(cache, f, ensure_ascii=False)
 
